@@ -5,6 +5,7 @@ same MicroPython raw REPL (Ctrl-A to enter, Ctrl-D to execute a buffer,
 Ctrl-B to exit back to the friendly REPL).
 """
 
+import ast
 import base64
 import time
 
@@ -116,3 +117,31 @@ class RawRepl:
                 pass
         finally:
             self.exec("f.close()")
+
+    def remove_file(self, remote_path):
+        self.exec("import os\n" f"os.remove({remote_path!r})\n")
+
+    def list_files(self, remote_dir="/"):
+        """Recursively list plain files (not directories) under remote_dir.
+
+        Returns absolute paths like "/main.py", "/lib/foo.py". Directories
+        themselves are walked but not included in the result.
+        """
+        out = self.exec(
+            "import os\n"
+            "def _tl_walk(path):\n"
+            "    found = []\n"
+            "    for name in os.listdir(path):\n"
+            "        full = path.rstrip('/') + '/' + name\n"
+            "        try:\n"
+            "            is_dir = os.stat(full)[0] & 0x4000\n"
+            "        except OSError:\n"
+            "            continue\n"
+            "        if is_dir:\n"
+            "            found.extend(_tl_walk(full))\n"
+            "        else:\n"
+            "            found.append(full)\n"
+            "    return found\n"
+            f"print(_tl_walk({remote_dir!r}))\n"
+        )
+        return sorted(ast.literal_eval(out.decode("utf-8").strip()))

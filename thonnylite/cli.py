@@ -9,11 +9,13 @@ from .console import run_console
 from .raw_repl import RawRepl, RawReplError
 
 MENU = """
-What would you like to upload from {root}?
-  1) Everything
-  2) Selective
-  3) Only git-modified files
+What would you like to do? (working directory: {root})
+  1) Upload everything
+  2) Upload selectively
+  3) Upload only git-modified files
   4) Skip upload, just watch console
+  5) Delete files from the device
+  6) Run a local script on the device (not saved as main.py)
   q) Quit
 """
 
@@ -63,6 +65,65 @@ def upload_and_reset(port, root, files):
     return repl.serial
 
 
+def delete_files(port):
+    repl = RawRepl(port)
+    try:
+        repl.enter_raw_repl()
+        remote_files = repl.list_files()
+        if not remote_files:
+            print("No files found on the device.")
+            return
+        print("Files on device:")
+        print("Enter numbers/ranges to delete (e.g. 1-3,7), or blank to cancel:")
+        selected = file_selection.prompt_selection_or_none(remote_files)
+        if not selected:
+            print("Cancelled.")
+            return
+        print("About to delete:")
+        for f in selected:
+            print(f"  - {f}")
+        if input("Type 'yes' to confirm: ").strip().lower() != "yes":
+            print("Cancelled.")
+            return
+        for f in selected:
+            print(f"  removing {f}")
+            repl.remove_file(f)
+        repl.exit_raw_repl()
+    except RawReplError as e:
+        print(f"Error talking to board: {e}")
+    finally:
+        repl.close()
+
+
+def run_local_script(port, root):
+    py_files = [f for f in file_selection.list_all_files(root) if f.endswith(".py")]
+    if not py_files:
+        print("No local .py files found.")
+        return
+    print("Pick one script to run on the device (output prints below; it is")
+    print("executed directly and not saved to the device's filesystem):")
+    selected = file_selection.prompt_selection_or_none(py_files)
+    if not selected:
+        print("Cancelled.")
+        return
+    rel_path = selected[0]
+    with open(os.path.join(root, rel_path), "r") as f:
+        code = f.read()
+
+    repl = RawRepl(port)
+    try:
+        repl.enter_raw_repl()
+        print(f"--- running {rel_path} on device ---")
+        out = repl.exec(code, timeout=30)
+        print(out.decode("utf-8", "replace"))
+        print(f"--- {rel_path} finished ---")
+        repl.exit_raw_repl()
+    except RawReplError as e:
+        print(f"Error running script: {e}")
+    finally:
+        repl.close()
+
+
 def main():
     root = os.getcwd()
     port = device.wait_for_pico()
@@ -92,6 +153,12 @@ def main():
                     continue
                 run_console(ser)
                 ser.close()
+
+            elif choice == "5":
+                delete_files(port)
+
+            elif choice == "6":
+                run_local_script(port, root)
 
             else:
                 print("Unrecognized choice.")

@@ -14,16 +14,22 @@ so the only thing you ever touch by hand is your editor.
 ## What it does
 
 1. Detects a connected Pico over USB serial.
-2. Asks what to upload from the current directory:
-   - **Everything**
-   - **Selectively** (pick from a numbered list)
-   - **Only files git reports as modified/added/untracked**
-3. Uploads the chosen files, mirroring your local subdirectory structure
-   onto the device's filesystem (creating directories as needed).
-4. Soft-resets the board so `boot.py`/`main.py` run fresh.
-5. Streams the live serial console so you can watch output / use the
+2. Presents a menu:
+   - **Upload everything** from the current directory
+   - **Upload selectively** (pick from a numbered list)
+   - **Upload only files git reports as modified/added/untracked**
+   - **Skip upload, just watch console**
+   - **Delete files from the device** (browse the device's actual
+     filesystem, pick one or more, confirm, remove)
+   - **Run a local script on the device** without saving it there —
+     for one-off cleanup/maintenance scripts that shouldn't become
+     `main.py` or linger on the filesystem
+3. An upload mirrors your local subdirectory structure onto the
+   device's filesystem (creating directories as needed), then
+   soft-resets the board so `boot.py`/`main.py` run fresh, then
+   streams the live serial console so you can watch output / use the
    REPL for debugging.
-6. `Ctrl+]` breaks out of the console back to the upload menu, without
+4. `Ctrl+]` breaks out of the console back to the menu, without
    dropping the USB connection or needing to unplug anything.
 
 ## Requirements
@@ -99,9 +105,20 @@ expects, so it's safe to reserve.
 `/lib/foo.py`), rather than flattened into the root — required for any
 code using package-style imports like `from lib.foo import bar`.
 
-**Deleted files are not synced.** "Git-modified" mode reports files git
-sees as deleted but does not remove them from the device automatically —
-first-version scope was upload-only.
+**Deleted files are not synced automatically.** "Git-modified" mode
+reports files git sees as deleted but does not remove them from the
+device — use the explicit **delete** menu option for that (it lists the
+device's real filesystem, recursively, via the same raw-REPL `exec()`
+mechanism used everywhere else, so it reflects what's actually on the
+device rather than what git thinks should be there). Deleting a
+directory's last file does not remove the now-empty directory itself.
+
+**Running a script "not as main.py" executes it directly through the raw
+REPL**, the same way `mpremote run` does — the local file's source is
+sent as the raw-REPL exec buffer and run immediately, with its output
+streamed back, but it is never written to the device's filesystem. This
+is meant for cleanup/maintenance scripts you want to run once, not for
+anything that needs to survive a reboot (use an upload for that).
 
 ## User notes / gotchas
 
@@ -122,6 +139,9 @@ first-version scope was upload-only.
   with a MicroPython-specific PID, plus a fallback match on
   `manufacturer == "MicroPython"` for other RP2040 boards running
   MicroPython.
+- A script run via "run a local script" has a 30-second execution
+  timeout; a genuinely long-running cleanup job will need a longer
+  timeout raised in code (`RawRepl.exec(..., timeout=...)`).
 
 ## Project layout
 

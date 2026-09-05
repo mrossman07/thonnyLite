@@ -75,32 +75,68 @@ def list_git_modified_files(root="."):
     return sorted(set(files)), sorted(set(deleted))
 
 
-def prompt_selective(all_files):
-    """Ask the user to pick a subset via numbered checklist input."""
-    print("Files available:")
-    for i, f in enumerate(all_files, start=1):
-        print(f"  {i:>3}. {f}")
-    print("Enter numbers/ranges (e.g. 1-3,7), or 'all':")
+def parse_index_selection(raw, items):
+    """Parse '1-3,7' / 'all' style input into a subset of `items`.
+
+    Returns None if `raw` is blank (caller's cue to treat it as cancelled).
+    Raises ValueError if `raw` can't be parsed as indices/ranges.
+    """
+    raw = raw.strip()
+    if not raw:
+        return None
+    if raw.lower() == "all":
+        return list(items)
+    indices = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            lo, hi = part.split("-", 1)
+            indices.update(range(int(lo), int(hi) + 1))
+        else:
+            indices.add(int(part))
+    return [items[i - 1] for i in sorted(indices) if 1 <= i <= len(items)]
+
+
+def prompt_selection(items, prompt="Enter numbers/ranges (e.g. 1-3,7), or 'all':"):
+    """Print a numbered list of `items` and prompt until a valid subset is chosen."""
+    for i, item in enumerate(items, start=1):
+        print(f"  {i:>3}. {item}")
+    print(prompt)
     while True:
         raw = input("> ").strip()
-        if raw.lower() == "all":
-            return list(all_files)
-        indices = set()
         try:
-            for part in raw.split(","):
-                part = part.strip()
-                if not part:
-                    continue
-                if "-" in part:
-                    lo, hi = part.split("-", 1)
-                    indices.update(range(int(lo), int(hi) + 1))
-                else:
-                    indices.add(int(part))
+            selected = parse_index_selection(raw, items)
         except ValueError:
             print("Couldn't parse that. Try again.")
             continue
-        selected = [all_files[i - 1] for i in sorted(indices) if 1 <= i <= len(all_files)]
         if not selected:
-            print("No valid files selected. Try again.")
+            print("No valid selection. Try again.")
+            continue
+        return selected
+
+
+def prompt_selective(all_files):
+    """Ask the user to pick a subset of files via numbered checklist input."""
+    print("Files available:")
+    return prompt_selection(all_files)
+
+
+def prompt_selection_or_none(items):
+    """Like prompt_selection, but blank input cancels (returns None) instead of re-prompting."""
+    for i, item in enumerate(items, start=1):
+        print(f"  {i:>3}. {item}")
+    while True:
+        raw = input("> ").strip()
+        if not raw:
+            return None
+        try:
+            selected = parse_index_selection(raw, items)
+        except ValueError:
+            print("Couldn't parse that. Try again (or leave blank to cancel).")
+            continue
+        if not selected:
+            print("No valid selection. Try again (or leave blank to cancel).")
             continue
         return selected
