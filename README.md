@@ -17,7 +17,9 @@ so the only thing you ever touch by hand is your editor.
 2. Presents a menu:
    - **Upload everything** from the current directory
    - **Upload selectively** (pick from a numbered list)
-   - **Upload only files git reports as modified/added/untracked**
+   - **Upload only files git reports as modified or newly staged**
+     (`git add`ed but not committed) — plain untracked files that were
+     never `git add`ed are not included
    - **Skip upload, just watch console**
    - **Delete files from the device** (browse the device's actual
      filesystem, pick one or more, confirm, remove)
@@ -90,12 +92,14 @@ expects, so it's safe to reserve.
 `.gitignore` parsing:
 - "Everything" = `git ls-files -co --exclude-standard` (tracked +
   untracked, honoring `.gitignore`).
-- "Git-modified" = `git status --porcelain --untracked-files=all`,
-  parsed for modified/added/untracked entries. Note the
-  `--untracked-files=all` flag specifically — plain `git status
-  --porcelain` collapses a brand-new untracked directory into a single
-  line (e.g. `?? lib/`) instead of listing the files inside it, which
-  would otherwise try to "upload" a directory as if it were a file.
+- "Git-modified" = `git status --porcelain --untracked-files=no`,
+  parsed for modified/staged-new entries. Plain untracked (`??`) files —
+  ones git has never been told about at all — are deliberately excluded:
+  including them made this mode upload a project's entire never-`git
+  add`ed backlog on every run, not just the one file that actually
+  changed. Run `git add` on a brand-new file to have it picked up as
+  "new" here, the same way git itself would call it staged rather than
+  merely present on disk.
 - If the current directory isn't a git repo, both modes fall back to a
   plain directory walk filtered by a small built-in ignore list
   (`.git`, `__pycache__`, `.venv`/`venv`, `node_modules`, `.DS_Store`),

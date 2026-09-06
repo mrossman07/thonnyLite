@@ -49,13 +49,18 @@ def list_all_files(root="."):
 
 
 def list_git_modified_files(root="."):
-    """Modified/staged/untracked files per `git status`. Returns None if not a git repo."""
+    """Modified or newly-staged files per `git status`. Returns None if not a git repo.
+
+    Deliberately excludes plain untracked ("??") files: those are files git
+    has never been told about at all (no `git add`), which in a project with
+    a lot of not-yet-added cruft would otherwise sweep in far more than the
+    one changed file the user actually wants. "New" here means git already
+    knows about it (staged with `git add`), not merely present on disk.
+    """
     if not _is_git_repo(root):
         return None
     result = subprocess.run(
-        # --untracked-files=all: list files inside a new directory individually
-        # rather than collapsing the whole directory to one line.
-        ["git", "status", "--porcelain", "--untracked-files=all"],
+        ["git", "status", "--porcelain", "--untracked-files=no"],
         cwd=root,
         capture_output=True,
         text=True,
