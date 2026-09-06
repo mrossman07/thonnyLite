@@ -29,6 +29,27 @@ def _git_ls_files(root):
     return [line for line in result.stdout.splitlines() if line]
 
 
+def _repo_toplevel(root):
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def _to_root_relative(root, top_level, repo_relative_path):
+    """Convert a path from `git status` (always relative to the repo's top
+    level) into a path relative to `root` (wherever thonnylite was launched
+    from) — needed so uploads land at the right place whether `root` is the
+    repo root itself or some subdirectory of it (e.g. a `src/` that maps
+    onto the Pico's filesystem root)."""
+    abs_path = os.path.join(top_level, repo_relative_path)
+    return os.path.relpath(abs_path, root).replace(os.sep, "/")
+
+
 def _walk_all_files(root):
     """Fallback for non-git directories: built-in ignore list only."""
     files = []
@@ -56,11 +77,20 @@ def list_git_modified_files(root="."):
     a lot of not-yet-added cruft would otherwise sweep in far more than the
     one changed file the user actually wants. "New" here means git already
     knows about it (staged with `git add`), not merely present on disk.
+
+    Results are relative to `root` (wherever thonnylite was launched from),
+    restricted to files under `root`. `git status` itself always reports
+    paths relative to the repo's top level, not the current directory, so
+    both the pathspec restriction (`-- .`) and the path conversion below are
+    needed for `root` to correctly be treated as "this is what maps onto the
+    Pico's filesystem" when it's a subdirectory of the repo (e.g. a `src/`
+    folder), not just when it happens to be the repo root.
     """
     if not _is_git_repo(root):
         return None
+    top_level = _repo_toplevel(root)
     result = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=no"],
+        ["git", "status", "--porcelain", "--untracked-files=no", "--", "."],
         cwd=root,
         capture_output=True,
         text=True,
@@ -73,6 +103,7 @@ def list_git_modified_files(root="."):
         # Handle renames: "R  old -> new"
         if "->" in path:
             path = path.split("->", 1)[1].strip()
+        path = _to_root_relative(root, top_level, path)
         if "D" in status:
             deleted.append(path)
             continue

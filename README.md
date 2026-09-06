@@ -100,6 +100,20 @@ expects, so it's safe to reserve.
   changed. Run `git add` on a brand-new file to have it picked up as
   "new" here, the same way git itself would call it staged rather than
   merely present on disk.
+- **All file paths are relative to the directory you launch `thonnylite`
+  from** (not the repo root, if those differ). `git ls-files` already
+  reports paths relative to the current directory by default; `git
+  status` does not — it always reports paths relative to the repo's top
+  level — so "git-modified" mode explicitly restricts to the launch
+  directory's subtree and converts each path back to being relative to
+  it. Without that conversion, launching from a repo root that contains
+  the actual device project one level down (e.g. a `src/` folder) would
+  incorrectly nest that folder into the device paths too (`/src/main.py`
+  instead of `/main.py`), and launching from inside that subfolder would
+  fail entirely (it would look for `<subfolder>/main.py` on disk instead
+  of `main.py`). Run `thonnylite` from whichever directory's contents
+  should map onto the Pico's filesystem root — `cd` into `src/` first if
+  your repo keeps the actual device code below the repo root.
 - If the current directory isn't a git repo, both modes fall back to a
   plain directory walk filtered by a small built-in ignore list
   (`.git`, `__pycache__`, `.venv`/`venv`, `node_modules`, `.DS_Store`),
