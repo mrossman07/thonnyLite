@@ -47,9 +47,9 @@ so the only thing you ever touch by hand is your editor.
 ## Install
 
 From this repo:
-
+You might need to install pipx first (brew install pipx)
 ```
-pip install -e .
+pipx install -e .
 ```
 
 This installs a `thonnylite` command (via a `console_scripts` entry
